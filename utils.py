@@ -3,6 +3,8 @@ import numpy as np
 import xml.etree.ElementTree as ET
 import struct
 import os
+from OpenGL.arrays import vbo
+from OpenGL.GL import *
 
 
 def parse_stl(filename):
@@ -55,9 +57,35 @@ def parse_ascii(filename):
 
 class Visual:
     def __init__(self, origin, vertices, normals):
-        self.origin = origin  # 4x4变换矩阵
-        self.vertices = vertices
-        self.normals = normals
+        self.origin = origin
+        # 转换为numpy数组并确保形状正确
+        vertices_np = np.array(vertices, dtype="f4").reshape(-1, 3)
+        normals_np = np.array(normals, dtype="f4").reshape(-1, 3)
+        self.vertex_vbo = vbo.VBO(vertices_np)
+        self.normal_vbo = vbo.VBO(normals_np)
+        self.vertex_count = vertices_np.shape[0]  # 直接使用顶点数量
+
+
+def draw_visual(visual):
+    glPushMatrix()
+    glMultMatrixf(visual.origin.T.ravel())  # 列主序转换
+
+    visual.vertex_vbo.bind()
+    glEnableClientState(GL_VERTEX_ARRAY)
+    glVertexPointer(3, GL_FLOAT, 0, None)
+
+    visual.normal_vbo.bind()
+    glEnableClientState(GL_NORMAL_ARRAY)
+    glNormalPointer(GL_FLOAT, 0, None)
+
+    glDrawArrays(GL_TRIANGLES, 0, visual.vertex_count)
+
+    glDisableClientState(GL_NORMAL_ARRAY)
+    glDisableClientState(GL_VERTEX_ARRAY)
+    visual.normal_vbo.unbind()
+    visual.vertex_vbo.unbind()
+
+    glPopMatrix()
 
 
 class Link:
@@ -65,6 +93,16 @@ class Link:
         self.name = name
         self.visuals = []
         self.children = []  # 子关节列表
+
+
+def draw_link(link):
+    for visual in link.visuals:
+        draw_visual(visual)
+    for joint in link.children:
+        glPushMatrix()
+        glMultMatrixf(joint.origin.T.ravel())
+        draw_link(joint.child)
+        glPopMatrix()
 
 
 class Joint:
