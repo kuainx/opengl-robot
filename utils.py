@@ -1,13 +1,32 @@
-import transforms3d
-import numpy as np
-import xml.etree.ElementTree as ET
-import struct
 import os
+import struct
+import xml.etree.ElementTree as ET
+from typing import List, Tuple
+
+import numpy as np
+import transforms3d
 from OpenGL.arrays import vbo
-from OpenGL.GL import *
+from OpenGL.GL import (
+    GL_FLOAT,
+    GL_NORMAL_ARRAY,
+    GL_TRIANGLES,
+    GL_VERTEX_ARRAY,
+    glDisableClientState,
+    glDrawArrays,
+    glEnableClientState,
+    glMultMatrixf,
+    glNormalPointer,
+    glPopMatrix,
+    glPushMatrix,
+    glRotatef,
+    glVertexPointer,
+)
+
+Vertices = List[Tuple[float, float, float]]
+Normals = List[Tuple[float, float, float]]
 
 
-def parse_stl(filename):
+def parse_stl(filename: str) -> Tuple[Vertices, Normals]:
     """解析STL文件, 支持ASCII和二进制格式, 返回顶点和法线列表"""
     try:
         with open(filename, "rb") as f:
@@ -56,7 +75,7 @@ def parse_ascii(filename):
 
 
 class Visual:
-    def __init__(self, origin, vertices, normals):
+    def __init__(self, origin, vertices: Vertices, normals: Normals):
         self.origin = origin
         # 转换为numpy数组并确保形状正确
         vertices_np = np.array(vertices, dtype="f4").reshape(-1, 3)
@@ -119,7 +138,7 @@ class Joint:
         self.angle = 0.0  # 当前关节角度（弧度）
 
 
-def parse_urdf(urdf_file):
+def parse_urdf(urdf_file: str) -> Tuple[Link, List[Joint]]:
     tree = ET.parse(urdf_file)
     root = tree.getroot()
 
@@ -146,6 +165,7 @@ def parse_urdf(urdf_file):
             mesh_elem = visual_elem.find("geometry/mesh")
             if mesh_elem is not None:
                 stl_filename = mesh_elem.get("filename")
+                stl_filename = stl_filename if stl_filename is not None else ""
                 stl_filename = os.path.join(os.path.dirname(urdf_file), stl_filename)
                 vertices, normals = parse_stl(stl_filename)
                 link.visuals.append(Visual(origin_matrix, vertices, normals))
@@ -183,12 +203,12 @@ def parse_urdf(urdf_file):
     # 确定根link（未被任何joint作为child引用的link）
     child_links = set(joint.child.name for joint in revolute_joints)
     root_links = [link for link in links.values() if link.name not in child_links]
-    return root_links[0] if root_links else None, revolute_joints
+    return root_links[0], revolute_joints
 
 
-def create_cuboid(x1, y1, z1, x2, y2, z2):
-    vertices = []
-    normals = []
+def create_cuboid(x1: float, y1: float, z1: float, x2: float, y2: float, z2: float):
+    vertices: Vertices = []
+    normals: Normals = []
 
     # 前面 (z = z2)
     vertices.extend([(x1, y1, z2), (x2, y1, z2), (x2, y2, z2)])

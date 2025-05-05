@@ -1,6 +1,7 @@
 import numpy as np
+from OpenGL.GL import GL_DIFFUSE, GL_FRONT, glMaterialfv
+
 from utils import Visual, create_cuboid
-from OpenGL.GL import *
 
 
 class Shelf:

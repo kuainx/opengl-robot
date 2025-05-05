@@ -1,9 +1,31 @@
-from OpenGL.GL import *
-from OpenGL.GLU import *
 import glfw
-from utils import parse_urdf
 import numpy as np
+from OpenGL.GL import (
+    GL_COLOR_BUFFER_BIT,
+    GL_DEPTH_BUFFER_BIT,
+    GL_DEPTH_TEST,
+    GL_DIFFUSE,
+    GL_FRONT,
+    GL_LIGHT0,
+    GL_LIGHTING,
+    GL_MODELVIEW,
+    GL_POSITION,
+    GL_PROJECTION,
+    GL_SHININESS,
+    GL_SPECULAR,
+    glClear,
+    glClearColor,
+    glEnable,
+    glLightfv,
+    glLoadIdentity,
+    glMaterialfv,
+    glMatrixMode,
+    glViewport,
+)
+from OpenGL.GLU import gluLookAt, gluPerspective
+
 from shelf import Shelf
+from utils import parse_urdf
 
 mouse_left_pressed = False
 mouse_right_pressed = False
@@ -91,7 +113,7 @@ def key_callback(window, key, scancode, action, mods):
 def main():
     if not glfw.init():
         return
-    window = glfw.create_window(800, 600, "URDF Viewer", None, None)
+    window = glfw.create_window(800, 600, "Robot Viewer", None, None)
     if not window:
         glfw.terminate()
         return
@@ -116,7 +138,8 @@ def main():
 
     while not glfw.window_should_close(window):
         glClearColor(0.2, 0.3, 0.3, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT)
+        glClear(GL_DEPTH_BUFFER_BIT)
         width, height = glfw.get_framebuffer_size(window)
         glViewport(0, 0, width, height)
         glMatrixMode(GL_PROJECTION)
