@@ -1,9 +1,9 @@
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import glfw
-from utils import parse_urdf, draw_link
+from utils import parse_urdf
 import numpy as np
-from shelf import create_shelf, draw_shelf
+from shelf import Shelf
 
 mouse_left_pressed = False
 mouse_right_pressed = False
@@ -112,7 +112,7 @@ def main():
     global revolute_joints
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
     # 创建货架
-    shelf = create_shelf([0.2, 0.5, 0.8, 3], [0.5, 0.0, 0.0])
+    shelf = Shelf([0.2, 0.5, 0.8, 3], [0.5, 0.0, 0.0])
 
     while not glfw.window_should_close(window):
         glClearColor(0.2, 0.3, 0.3, 1.0)
@@ -141,9 +141,8 @@ def main():
             1,
         )
 
-        draw_link(root_link)
-        # 绘制货架并设置材质
-        draw_shelf(shelf)
+        root_link.draw()
+        shelf.draw()
         glfw.swap_buffers(window)
         glfw.poll_events()
     glfw.terminate()

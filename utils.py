@@ -65,27 +65,26 @@ class Visual:
         self.normal_vbo = vbo.VBO(normals_np)
         self.vertex_count = vertices_np.shape[0]  # 直接使用顶点数量
 
+    def draw(self):
+        glPushMatrix()
+        glMultMatrixf(self.origin.T.ravel())  # 列主序转换
 
-def draw_visual(visual):
-    glPushMatrix()
-    glMultMatrixf(visual.origin.T.ravel())  # 列主序转换
+        self.vertex_vbo.bind()
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glVertexPointer(3, GL_FLOAT, 0, None)
 
-    visual.vertex_vbo.bind()
-    glEnableClientState(GL_VERTEX_ARRAY)
-    glVertexPointer(3, GL_FLOAT, 0, None)
+        self.normal_vbo.bind()
+        glEnableClientState(GL_NORMAL_ARRAY)
+        glNormalPointer(GL_FLOAT, 0, None)
 
-    visual.normal_vbo.bind()
-    glEnableClientState(GL_NORMAL_ARRAY)
-    glNormalPointer(GL_FLOAT, 0, None)
+        glDrawArrays(GL_TRIANGLES, 0, self.vertex_count)
 
-    glDrawArrays(GL_TRIANGLES, 0, visual.vertex_count)
+        glDisableClientState(GL_NORMAL_ARRAY)
+        glDisableClientState(GL_VERTEX_ARRAY)
+        self.normal_vbo.unbind()
+        self.vertex_vbo.unbind()
 
-    glDisableClientState(GL_NORMAL_ARRAY)
-    glDisableClientState(GL_VERTEX_ARRAY)
-    visual.normal_vbo.unbind()
-    visual.vertex_vbo.unbind()
-
-    glPopMatrix()
+        glPopMatrix()
 
 
 class Link:
@@ -94,21 +93,20 @@ class Link:
         self.visuals = []
         self.children = []  # 子关节列表
 
-
-def draw_link(link):
-    for visual in link.visuals:
-        draw_visual(visual)
-    for joint in link.children:
-        glPushMatrix()
-        # 应用关节原始变换
-        glMultMatrixf(joint.origin.T.ravel())
-        # 应用关节旋转（仅限旋转关节）
-        if joint.type == "revolute":
-            angle_deg = np.degrees(joint.angle)
-            glRotatef(angle_deg, *joint.axis)
-        # 递归绘制子link
-        draw_link(joint.child)
-        glPopMatrix()
+    def draw(self):
+        for visual in self.visuals:
+            visual.draw()
+        for joint in self.children:
+            glPushMatrix()
+            # 应用关节原始变换
+            glMultMatrixf(joint.origin.T.ravel())
+            # 应用关节旋转（仅限旋转关节）
+            if joint.type == "revolute":
+                angle_deg = np.degrees(joint.angle)
+                glRotatef(angle_deg, *joint.axis)
+            # 递归绘制子link
+            joint.child.draw()
+            glPopMatrix()
 
 
 class Joint:
@@ -186,3 +184,40 @@ def parse_urdf(urdf_file):
     child_links = set(joint.child.name for joint in revolute_joints)
     root_links = [link for link in links.values() if link.name not in child_links]
     return root_links[0] if root_links else None, revolute_joints
+
+
+def create_cuboid(x1, y1, z1, x2, y2, z2):
+    vertices = []
+    normals = []
+
+    # 前面 (z = z2)
+    vertices.extend([(x1, y1, z2), (x2, y1, z2), (x2, y2, z2)])
+    vertices.extend([(x1, y1, z2), (x2, y2, z2), (x1, y2, z2)])
+    normals += [(0, 0, 1)] * 6
+
+    # 后面 (z = z1)
+    vertices.extend([(x1, y1, z1), (x2, y2, z1), (x2, y1, z1)])
+    vertices.extend([(x1, y1, z1), (x1, y2, z1), (x2, y2, z1)])
+    normals += [(0, 0, -1)] * 6
+
+    # 左面 (x = x1)
+    vertices.extend([(x1, y1, z1), (x1, y2, z1), (x1, y2, z2)])
+    vertices.extend([(x1, y1, z1), (x1, y2, z2), (x1, y1, z2)])
+    normals += [(-1, 0, 0)] * 6
+
+    # 右面 (x = x2)
+    vertices.extend([(x2, y1, z1), (x2, y1, z2), (x2, y2, z2)])
+    vertices.extend([(x2, y1, z1), (x2, y2, z2), (x2, y2, z1)])
+    normals += [(1, 0, 0)] * 6
+
+    # 顶面 (y = y2)
+    vertices.extend([(x1, y2, z1), (x2, y2, z1), (x2, y2, z2)])
+    vertices.extend([(x1, y2, z1), (x2, y2, z2), (x1, y2, z2)])
+    normals += [(0, 1, 0)] * 6
+
+    # 底面 (y = y1)
+    vertices.extend([(x1, y1, z1), (x2, y1, z2), (x2, y1, z1)])
+    vertices.extend([(x1, y1, z1), (x1, y1, z2), (x2, y1, z2)])
+    normals += [(0, -1, 0)] * 6
+
+    return vertices, normals
