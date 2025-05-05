@@ -3,6 +3,7 @@ from OpenGL.GLU import *
 import glfw
 from utils import parse_urdf, draw_link
 import numpy as np
+from shelf import create_shelf, draw_shelf
 
 mouse_left_pressed = False
 mouse_right_pressed = False
@@ -109,9 +110,9 @@ def main():
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
     global revolute_joints
-    root_link, revolute_joints = parse_urdf(
-        "robot/rm_65.urdf"
-    )  # 替换为你的URDF文件路径
+    root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
+    # 创建货架
+    shelf = create_shelf([0.2, 0.5, 0.8, 3], [0.5, 0.0, 0.0])
 
     while not glfw.window_should_close(window):
         glClearColor(0.2, 0.3, 0.3, 1.0)
@@ -141,6 +142,8 @@ def main():
         )
 
         draw_link(root_link)
+        # 绘制货架并设置材质
+        draw_shelf(shelf)
         glfw.swap_buffers(window)
         glfw.poll_events()
     glfw.terminate()
