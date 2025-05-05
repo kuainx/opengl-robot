@@ -63,6 +63,30 @@ def scroll_callback(window, xoffset, yoffset):
     cam_radius = np.clip(cam_radius, 1.0, 20.0)  # 限制缩放范围
 
 
+def key_callback(window, key, scancode, action, mods):
+    global revolute_joints
+    if action == glfw.PRESS or action == glfw.REPEAT:
+        delta_angle = np.radians(5)  # 每次按键旋转5度
+
+        # 映射数字键1~6到关节索引0~5
+        if glfw.KEY_1 <= key <= glfw.KEY_6:
+            index = key - glfw.KEY_1
+            if index < len(revolute_joints):
+                revolute_joints[index].angle += delta_angle
+        # 增加反向旋转控制（小键盘1~6）
+        elif key in [
+            glfw.KEY_KP_1,
+            glfw.KEY_KP_2,
+            glfw.KEY_KP_3,
+            glfw.KEY_KP_4,
+            glfw.KEY_KP_5,
+            glfw.KEY_KP_6,
+        ]:
+            index = key - glfw.KEY_KP_1
+            if index < len(revolute_joints):
+                revolute_joints[index].angle -= delta_angle
+
+
 def main():
     if not glfw.init():
         return
@@ -74,6 +98,7 @@ def main():
     glfw.set_mouse_button_callback(window, mouse_button_callback)
     glfw.set_cursor_pos_callback(window, cursor_pos_callback)
     glfw.set_scroll_callback(window, scroll_callback)
+    glfw.set_key_callback(window, key_callback)
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_LIGHT0)
@@ -83,7 +108,10 @@ def main():
     glMaterialfv(GL_FRONT, GL_SPECULAR, (0.5, 0.5, 0.5, 1))
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
-    root_link = parse_urdf("robot/rm_65.urdf")  # 替换为你的URDF文件路径
+    global revolute_joints
+    root_link, revolute_joints = parse_urdf(
+        "robot/rm_65.urdf"
+    )  # 替换为你的URDF文件路径
 
     while not glfw.window_should_close(window):
         glClearColor(0.2, 0.3, 0.3, 1.0)

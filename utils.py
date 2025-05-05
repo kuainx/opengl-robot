@@ -100,16 +100,25 @@ def draw_link(link):
         draw_visual(visual)
     for joint in link.children:
         glPushMatrix()
+        # 应用关节原始变换
         glMultMatrixf(joint.origin.T.ravel())
+        # 应用关节旋转（仅限旋转关节）
+        if joint.type == "revolute":
+            angle_deg = np.degrees(joint.angle)
+            glRotatef(angle_deg, *joint.axis)
+        # 递归绘制子link
         draw_link(joint.child)
         glPopMatrix()
 
 
 class Joint:
-    def __init__(self, name, origin, child):
+    def __init__(self, name, joint_type, origin, child, axis):
         self.name = name
-        self.origin = origin  # 4x4变换矩阵
-        self.child = child  # 子Link
+        self.type = joint_type  # 关节类型（revolute/prismatic等）
+        self.origin = origin  # 原始变换矩阵
+        self.child = child  # 子link
+        self.axis = axis  # 旋转/移动轴
+        self.angle = 0.0  # 当前关节角度（弧度）
 
 
 def parse_urdf(urdf_file):
@@ -145,9 +154,15 @@ def parse_urdf(urdf_file):
         links[link_name] = link
 
     # 解析所有joint
-    joints = []
+    revolute_joints = []
     for joint_elem in root.findall("joint"):
         joint_name = joint_elem.get("name")
+        joint_type = joint_elem.get("type")
+        axis_elem = joint_elem.find("axis")
+        axis = [0.0, 0.0, 1.0]  # 默认z轴
+        if axis_elem is not None:
+            axis = list(map(float, axis_elem.get("xyz", "0 0 1").split()))
+
         parent_link = links[joint_elem.find("parent").get("link")]
         child_link = links[joint_elem.find("child").get("link")]
         # 解析origin
@@ -162,11 +177,12 @@ def parse_urdf(urdf_file):
         origin_matrix[:3, :3] = rotation
         origin_matrix[:3, 3] = xyz
         # 创建joint并添加到父link的子列表
-        joint = Joint(joint_name, origin_matrix, child_link)
+        joint = Joint(joint_name, joint_type, origin_matrix, child_link, axis)
         parent_link.children.append(joint)
-        joints.append(joint)
+        if joint_type == "revolute":
+            revolute_joints.append(joint)  # 收集可旋转关节
 
     # 确定根link（未被任何joint作为child引用的link）
-    child_links = set(joint.child.name for joint in joints)
+    child_links = set(joint.child.name for joint in revolute_joints)
     root_links = [link for link in links.values() if link.name not in child_links]
-    return root_links[0] if root_links else None
+    return root_links[0] if root_links else None, revolute_joints
