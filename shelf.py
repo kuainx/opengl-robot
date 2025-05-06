@@ -65,7 +65,7 @@ class Shelf:
             num_objects = random.randint(1, 3)
             for _ in range(num_objects):
                 shape_type = random.choice(["cube", "sphere"])
-                obj_size = 0.1
+                obj_size = 0.05
                 half_size = obj_size / 2
                 x_local = random.uniform(-width / 2 + half_size, width / 2 - half_size)
                 y_local = random.uniform(-depth / 2 + half_size, depth / 2 - half_size)

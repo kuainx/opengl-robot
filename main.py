@@ -23,7 +23,9 @@ from OpenGL.GL import (
     glViewport,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
+from scipy.spatial.transform import Rotation as R
 
+from robot import Robot
 from shelf import Shelf
 from utils import parse_urdf
 
@@ -34,6 +36,9 @@ cam_radius = 5.196  # 初始距离 3√3 ≈ 5.196
 cam_theta = np.pi / 4  # 初始水平角 (3,3,3)
 cam_phi = np.arccos(3 / 5.196)  # 初始俯仰角
 pan_offset = np.array([0.0, 0.0, 0.0])  # 存储场景平移量
+target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
+target_orientation = np.eye(3)  # 初始目标旋转
+robot = None
 
 
 def mouse_button_callback(window, button, action, mods):
@@ -87,27 +92,77 @@ def scroll_callback(window, xoffset, yoffset):
 
 
 def key_callback(window, key, scancode, action, mods):
-    global revolute_joints
+    global revolute_joints, target_orientation, target_position, robot
+    if action != glfw.PRESS and action != glfw.REPEAT:
+        return
+    delta_angle = np.radians(5)  # 每次按键旋转5度
+    # 映射数字键1~6到关节索引0~5
+    if glfw.KEY_1 <= key <= glfw.KEY_7:
+        index = key - glfw.KEY_1
+        if index < len(revolute_joints):
+            revolute_joints[index].angle += delta_angle
+    # 增加反向旋转控制（小键盘1~6）
+    elif glfw.KEY_KP_1 <= key <= glfw.KEY_KP_7:
+        index = key - glfw.KEY_KP_1
+        if index < len(revolute_joints):
+            revolute_joints[index].angle -= delta_angle
+    # mimic
+    for joint in revolute_joints:
+        if joint.mimic_joint is not None:
+            master_joint = next(
+                (j for j in revolute_joints if j.name == joint.mimic_joint), None
+            )
+            if master_joint:
+                joint.angle = master_joint.angle * joint.multiplier + joint.offset
+
+    delta_pos = 0.02  # 位置步长
+    delta_rot = 5  # 旋转角度步长（度）
+
     if action == glfw.PRESS or action == glfw.REPEAT:
-        delta_angle = np.radians(5)  # 每次按键旋转5度
-        # 映射数字键1~6到关节索引0~5
-        if glfw.KEY_1 <= key <= glfw.KEY_7:
-            index = key - glfw.KEY_1
-            if index < len(revolute_joints):
-                revolute_joints[index].angle += delta_angle
-        # 增加反向旋转控制（小键盘1~6）
-        elif glfw.KEY_KP_1 <= key <= glfw.KEY_KP_7:
-            index = key - glfw.KEY_KP_1
-            if index < len(revolute_joints):
-                revolute_joints[index].angle -= delta_angle
-        # mimic
-        for joint in revolute_joints:
-            if joint.mimic_joint is not None:
-                master_joint = next(
-                    (j for j in revolute_joints if j.name == joint.mimic_joint), None
-                )
-                if master_joint:
-                    joint.angle = master_joint.angle * joint.multiplier + joint.offset
+        # X轴控制 QAZ
+        if key == glfw.KEY_Q:
+            target_position[0] += delta_pos
+        elif key == glfw.KEY_A:
+            target_position[0] -= delta_pos
+        elif key == glfw.KEY_Z:
+            rot = R.from_euler("x", delta_rot, degrees=True)
+            target_orientation = rot.apply(target_orientation)
+
+        # Y轴控制 WSX
+        elif key == glfw.KEY_W:
+            target_position[1] += delta_pos
+        elif key == glfw.KEY_S:
+            target_position[1] -= delta_pos
+        elif key == glfw.KEY_X:
+            rot = R.from_euler("y", delta_rot, degrees=True)
+            target_orientation = rot.apply(target_orientation)
+
+        # Z轴控制 EDC
+        elif key == glfw.KEY_E:
+            target_position[2] += delta_pos
+        elif key == glfw.KEY_D:
+            target_position[2] -= delta_pos
+        elif key == glfw.KEY_C:
+            rot = R.from_euler("z", delta_rot, degrees=True)
+            target_orientation = rot.apply(target_orientation)
+
+        # 执行逆解
+        if (
+            key
+            in [
+                glfw.KEY_Q,
+                glfw.KEY_A,
+                glfw.KEY_Z,
+                glfw.KEY_W,
+                glfw.KEY_S,
+                glfw.KEY_X,
+                glfw.KEY_E,
+                glfw.KEY_D,
+                glfw.KEY_C,
+            ]
+            and robot is not None
+        ):
+            robot.update_joint_angles(target_position, target_orientation)
 
 
 def main():
@@ -131,10 +186,11 @@ def main():
     glMaterialfv(GL_FRONT, GL_SPECULAR, (0.5, 0.5, 0.5, 1))
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
-    global revolute_joints
+    global revolute_joints, robot
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
+    robot = Robot("robot/rm_65.urdf", revolute_joints)
     # 创建货架
-    shelf = Shelf([0.2, 0.5, 0.8, 3], [0.5, 0.0, 0.0])
+    shelf = Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3])
 
     while not glfw.window_should_close(window):
         glClearColor(0.2, 0.3, 0.3, 1.0)
