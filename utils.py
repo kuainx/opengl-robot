@@ -171,8 +171,7 @@ def parse_urdf(urdf_file: str) -> Tuple[Link, List[Joint]]:
             # 解析geometry
             mesh_elem = visual_elem.find("geometry/mesh")
             if mesh_elem is not None:
-                stl_filename = mesh_elem.get("filename")
-                stl_filename = stl_filename if stl_filename is not None else ""
+                stl_filename = mesh_elem.get("filename") or ""
                 stl_filename = os.path.join(os.path.dirname(urdf_file), stl_filename)
                 vertices, normals = parse_stl(stl_filename)
                 link.visuals.append(Visual(origin_matrix, vertices, normals))
@@ -188,8 +187,13 @@ def parse_urdf(urdf_file: str) -> Tuple[Link, List[Joint]]:
         if axis_elem is not None:
             axis = list(map(float, axis_elem.get("xyz", "0 0 1").split()))
 
-        parent_link = links[joint_elem.find("parent").get("link")]
-        child_link = links[joint_elem.find("child").get("link")]
+        parent_elem = joint_elem.find("parent")
+        child_elem = joint_elem.find("child")
+        if parent_elem is None or child_elem is None:
+            print(f"Warning: Joint {joint_name} is missing parent or child element")
+            continue
+        parent_link = links[parent_elem.get("link")]
+        child_link = links[child_elem.get("link")]
         # 解析origin
         origin_elem = joint_elem.find("origin")
         xyz = [0.0, 0.0, 0.0]
