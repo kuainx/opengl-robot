@@ -95,18 +95,43 @@ def key_callback(window, key, scancode, action, mods):
     global revolute_joints, target_orientation, target_position, robot
     if action != glfw.PRESS and action != glfw.REPEAT:
         return
-    delta_angle = np.radians(5)  # 每次按键旋转5度
-    # 映射数字键1~6到关节索引0~5
+
+    delta_angle = np.radians(5)  # 关节旋转步长
+    delta_pos = 0.02  # 位置移动步长
+    delta_rot = 5  # 旋转角度步长（度）
+
+    # 获取Ctrl键状态
+    ctrl_pressed = (
+        glfw.get_key(window, glfw.KEY_LEFT_CONTROL) == glfw.PRESS
+        or glfw.get_key(window, glfw.KEY_RIGHT_CONTROL) == glfw.PRESS
+    )
+
+    # 处理关节控制 1~7
     if glfw.KEY_1 <= key <= glfw.KEY_7:
         index = key - glfw.KEY_1
-        if index < len(revolute_joints):
-            revolute_joints[index].angle += delta_angle
-    # 增加反向旋转控制（小键盘1~6）
-    elif glfw.KEY_KP_1 <= key <= glfw.KEY_KP_7:
-        index = key - glfw.KEY_KP_1
-        if index < len(revolute_joints):
-            revolute_joints[index].angle -= delta_angle
-    # mimic
+        # 根据Ctrl状态决定方向
+        direction = -1 if ctrl_pressed else 1
+        revolute_joints[index].angle += delta_angle * direction
+        if robot is not None:
+            target_position, target_orientation = robot.update_pos()
+
+    # 处理位置控制 QWE (XYZ轴移动)
+    pos_axes = {glfw.KEY_Q: 0, glfw.KEY_W: 1, glfw.KEY_E: 2}
+    if key in pos_axes:
+        axis = pos_axes[key]
+        direction = -1 if ctrl_pressed else 1
+        target_position[axis] += delta_pos * direction
+
+    # 处理旋转控制 ASD (XYZ轴旋转)
+    rot_axes = {glfw.KEY_A: "x", glfw.KEY_S: "y", glfw.KEY_D: "z"}
+    if key in rot_axes:
+        axis = rot_axes[key]
+        # 根据Ctrl状态决定旋转方向
+        angle = delta_rot * (-1 if ctrl_pressed else 1)
+        rot = R.from_euler(axis, angle, degrees=True)
+        target_orientation = rot.apply(target_orientation)
+
+    # 更新mimic关节
     for joint in revolute_joints:
         if joint.mimic_joint is not None:
             master_joint = next(
@@ -115,53 +140,16 @@ def key_callback(window, key, scancode, action, mods):
             if master_joint:
                 joint.angle = master_joint.angle * joint.multiplier + joint.offset
 
-    delta_pos = 0.02  # 位置步长
-    delta_rot = 5  # 旋转角度步长（度）
-
-    if action == glfw.PRESS or action == glfw.REPEAT:
-        # X轴控制 QAZ
-        if key == glfw.KEY_Q:
-            target_position[0] += delta_pos
-        elif key == glfw.KEY_A:
-            target_position[0] -= delta_pos
-        elif key == glfw.KEY_Z:
-            rot = R.from_euler("x", delta_rot, degrees=True)
-            target_orientation = rot.apply(target_orientation)
-
-        # Y轴控制 WSX
-        elif key == glfw.KEY_W:
-            target_position[1] += delta_pos
-        elif key == glfw.KEY_S:
-            target_position[1] -= delta_pos
-        elif key == glfw.KEY_X:
-            rot = R.from_euler("y", delta_rot, degrees=True)
-            target_orientation = rot.apply(target_orientation)
-
-        # Z轴控制 EDC
-        elif key == glfw.KEY_E:
-            target_position[2] += delta_pos
-        elif key == glfw.KEY_D:
-            target_position[2] -= delta_pos
-        elif key == glfw.KEY_C:
-            rot = R.from_euler("z", delta_rot, degrees=True)
-            target_orientation = rot.apply(target_orientation)
-
-        # 执行逆解
-        if (
-            key
-            in [
-                glfw.KEY_Q,
-                glfw.KEY_A,
-                glfw.KEY_Z,
-                glfw.KEY_W,
-                glfw.KEY_S,
-                glfw.KEY_X,
-                glfw.KEY_E,
-                glfw.KEY_D,
-                glfw.KEY_C,
-            ]
-            and robot is not None
-        ):
+    # 触发逆解计算
+    if key in [
+        glfw.KEY_Q,
+        glfw.KEY_W,
+        glfw.KEY_E,
+        glfw.KEY_A,
+        glfw.KEY_S,
+        glfw.KEY_D,
+    ]:
+        if robot is not None:
             robot.update_joint_angles(target_position, target_orientation)
 
 
