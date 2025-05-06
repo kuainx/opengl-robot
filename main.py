@@ -90,24 +90,24 @@ def key_callback(window, key, scancode, action, mods):
     global revolute_joints
     if action == glfw.PRESS or action == glfw.REPEAT:
         delta_angle = np.radians(5)  # 每次按键旋转5度
-
         # 映射数字键1~6到关节索引0~5
-        if glfw.KEY_1 <= key <= glfw.KEY_6:
+        if glfw.KEY_1 <= key <= glfw.KEY_7:
             index = key - glfw.KEY_1
             if index < len(revolute_joints):
                 revolute_joints[index].angle += delta_angle
         # 增加反向旋转控制（小键盘1~6）
-        elif key in [
-            glfw.KEY_KP_1,
-            glfw.KEY_KP_2,
-            glfw.KEY_KP_3,
-            glfw.KEY_KP_4,
-            glfw.KEY_KP_5,
-            glfw.KEY_KP_6,
-        ]:
+        elif glfw.KEY_KP_1 <= key <= glfw.KEY_KP_7:
             index = key - glfw.KEY_KP_1
             if index < len(revolute_joints):
                 revolute_joints[index].angle -= delta_angle
+        # mimic
+        for joint in revolute_joints:
+            if joint.mimic_joint is not None:
+                master_joint = next(
+                    (j for j in revolute_joints if j.name == joint.mimic_joint), None
+                )
+                if master_joint:
+                    joint.angle = master_joint.angle * joint.multiplier + joint.offset
 
 
 def main():

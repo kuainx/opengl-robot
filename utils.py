@@ -143,6 +143,9 @@ class Joint:
         self.child = child  # 子link
         self.axis = axis  # 旋转/移动轴
         self.angle = 0.0  # 当前关节角度（弧度）
+        self.mimic_joint: str | None = None  # 被模仿的关节名称
+        self.multiplier = 1.0  # 比例系数
+        self.offset = 0.0  # 偏移量
 
 
 def parse_urdf(urdf_file: str) -> Tuple[Link, List[Joint]]:
@@ -207,6 +210,11 @@ def parse_urdf(urdf_file: str) -> Tuple[Link, List[Joint]]:
         origin_matrix[:3, 3] = xyz
         # 创建joint并添加到父link的子列表
         joint = Joint(joint_name, joint_type, origin_matrix, child_link, axis)
+        mimic_elem = joint_elem.find("mimic")
+        if mimic_elem is not None:
+            joint.mimic_joint = mimic_elem.get("joint")
+            joint.multiplier = float(mimic_elem.get("multiplier", "1.0"))
+            joint.offset = float(mimic_elem.get("offset", "0.0"))
         parent_link.children.append(joint)
         if joint_type == "revolute":
             revolute_joints.append(joint)  # 收集可旋转关节
