@@ -7,13 +7,16 @@ import numpy as np
 import transforms3d
 from OpenGL.arrays import vbo
 from OpenGL.GL import (
+    GL_DIFFUSE,
     GL_FLOAT,
+    GL_FRONT,
     GL_NORMAL_ARRAY,
     GL_TRIANGLES,
     GL_VERTEX_ARRAY,
     glDisableClientState,
     glDrawArrays,
     glEnableClientState,
+    glMaterialfv,
     glMultMatrixf,
     glNormalPointer,
     glPopMatrix,
@@ -75,8 +78,11 @@ def parse_ascii(filename):
 
 
 class Visual:
-    def __init__(self, origin, vertices: Vertices, normals: Normals):
+    def __init__(
+        self, origin, vertices: Vertices, normals: Normals, color=(0.8, 0.8, 0.8, 1.0)
+    ):
         self.origin = origin
+        self.color = color
         # 转换为numpy数组并确保形状正确
         vertices_np = np.array(vertices, dtype="f4").reshape(-1, 3)
         normals_np = np.array(normals, dtype="f4").reshape(-1, 3)
@@ -86,6 +92,7 @@ class Visual:
 
     def draw(self):
         glPushMatrix()
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, self.color)  # 设置材质颜色
         glMultMatrixf(self.origin.T.ravel())  # 列主序转换
 
         self.vertex_vbo.bind()
@@ -241,3 +248,35 @@ def create_cuboid(x1: float, y1: float, z1: float, x2: float, y2: float, z2: flo
     normals += [(0, -1, 0)] * 6
 
     return vertices, normals
+
+
+def create_sphere(radius=0.05, slices=16, stacks=16):
+    vertices = []
+    normals = []
+    for i in range(slices):
+        theta1 = i * 2 * np.pi / slices
+        theta2 = (i + 1) * 2 * np.pi / slices
+        for j in range(stacks):
+            phi1 = j * np.pi / stacks
+            phi2 = (j + 1) * np.pi / stacks
+            # 生成四个顶点
+            p1 = spherical_to_cartesian(theta1, phi1, radius)
+            p2 = spherical_to_cartesian(theta2, phi1, radius)
+            p3 = spherical_to_cartesian(theta2, phi2, radius)
+            p4 = spherical_to_cartesian(theta1, phi2, radius)
+            # 添加两个三角形
+            vertices.extend([p1, p2, p3, p1, p3, p4])
+            # 生成法线
+            n1 = [x / radius for x in p1]
+            n2 = [x / radius for x in p2]
+            n3 = [x / radius for x in p3]
+            n4 = [x / radius for x in p4]
+            normals.extend([n1, n2, n3, n1, n3, n4])
+    return vertices, normals
+
+
+def spherical_to_cartesian(theta, phi, r):
+    x = r * np.sin(phi) * np.cos(theta)
+    y = r * np.sin(phi) * np.sin(theta)
+    z = r * np.cos(phi)
+    return (x, y, z)
