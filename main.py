@@ -35,7 +35,7 @@ last_mouse_x, last_mouse_y = 0, 0
 cam_radius = 5.196  # 初始距离 3√3 ≈ 5.196
 cam_theta = np.pi / 4  # 初始水平角 (3,3,3)
 cam_phi = np.arccos(3 / 5.196)  # 初始俯仰角
-pan_offset = np.array([0.0, 0.0, 0.0])  # 存储场景平移量
+pan_offset = [0.0, 0.0, 0.0]  # 存储场景平移量
 target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
 target_orientation = np.eye(3)  # 初始目标旋转
 robot = None
@@ -153,13 +153,7 @@ def key_callback(window, key, scancode, action, mods):
             robot.update_joint_angles(target_position, target_orientation)
 
 
-def main():
-    if not glfw.init():
-        return
-    window = glfw.create_window(800, 600, "Robot Viewer", None, None)
-    if not window:
-        glfw.terminate()
-        return
+def gl_init(window):
     glfw.make_context_current(window)
     glfw.set_mouse_button_callback(window, mouse_button_callback)
     glfw.set_cursor_pos_callback(window, cursor_pos_callback)
@@ -173,6 +167,15 @@ def main():
     glMaterialfv(GL_FRONT, GL_DIFFUSE, (0.8, 0.8, 0.8, 1))
     glMaterialfv(GL_FRONT, GL_SPECULAR, (0.5, 0.5, 0.5, 1))
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
+
+
+def main():
+    assert glfw.init() == True
+    window = glfw.create_window(800, 600, "Robot Viewer", None, None)
+    if not window:
+        glfw.terminate()
+        return
+    gl_init(window)
 
     global revolute_joints, robot
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
