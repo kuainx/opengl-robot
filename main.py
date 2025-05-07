@@ -169,51 +169,117 @@ def gl_init(window):
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
 
+def gl_init_shelf(window):
+    glfw.make_context_current(window)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    glLightfv(GL_LIGHT0, GL_POSITION, (1, 1, 1, 0))
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, (1, 1, 1, 1))
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, (0.8, 0.8, 0.8, 1))
+    glMaterialfv(GL_FRONT, GL_SPECULAR, (0.5, 0.5, 0.5, 1))
+    glMaterialfv(GL_FRONT, GL_SHININESS, 50)
+
+
+def render_main_window(window, root_link, shelf):
+    glClearColor(102 / 255, 204 / 255, 255 / 255, 1.0)
+    glClear(GL_COLOR_BUFFER_BIT)
+    glClear(GL_DEPTH_BUFFER_BIT)
+    width, height = glfw.get_framebuffer_size(window)
+
+    # 设置投影矩阵
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45, width / height, 0.1, 100)
+
+    # 计算摄像机位置
+    x = pan_offset[0] + cam_radius * np.sin(cam_phi) * np.cos(cam_theta)
+    y = pan_offset[1] + cam_radius * np.sin(cam_phi) * np.sin(cam_theta)
+    z = pan_offset[2] + cam_radius * np.cos(cam_phi)
+
+    # 设置模型视图矩阵
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    gluLookAt(x, y, z, pan_offset[0], pan_offset[1], pan_offset[2], 0, 0, 1)
+
+    # 绘制场景
+    root_link.draw()
+    shelf.draw()
+    glfw.swap_buffers(window)
+
+
+def render_shelf_window(window, root_link, shelf):
+    glClearColor(102 / 255, 204 / 255, 255 / 255, 1.0)
+    glClear(GL_COLOR_BUFFER_BIT)
+    glClear(GL_DEPTH_BUFFER_BIT)
+    width, height = glfw.get_framebuffer_size(window)
+
+    # 设置投影矩阵
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45, width / height, 0.1, 100)
+
+    # 设置固定摄像机视角（货架后方）
+    shelf_pos = shelf.position
+    camera_distance = 1.0  # 观察距离
+    camera_height = shelf.box_size[2] / 2  # 摄像机高度偏移
+
+    # 摄像机位置（货架后方，Y轴负方向）
+    cam_x = shelf_pos[0] + camera_distance
+    cam_y = shelf_pos[1]
+    cam_z = shelf_pos[2] + camera_height
+
+    # 设置模型视图矩阵
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    gluLookAt(
+        cam_x,
+        cam_y,
+        cam_z,  # 摄像机位置
+        shelf_pos[0],
+        shelf_pos[1],
+        cam_z,  # 观察点（货架中心）
+        0,
+        0,
+        1,
+    )  # 上方向
+
+    # 绘制场景
+    root_link.draw()
+    shelf.draw()
+    glfw.swap_buffers(window)
+
+
 def main():
     assert glfw.init() == True
+    # 创建主窗口
     window = glfw.create_window(800, 600, "Robot Viewer", None, None)
     if not window:
         glfw.terminate()
         return
     gl_init(window)
-
+    # 创建货架观察窗口（共享上下文）
+    shelf_window = glfw.create_window(800, 600, "Shelf View", None, window)
+    if not shelf_window:
+        glfw.terminate()
+        return
+    gl_init_shelf(shelf_window)
     global revolute_joints, robot
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
     robot = Robot("robot/rm_65.urdf", revolute_joints)
     # 创建货架
     shelf = Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3])
 
-    while not glfw.window_should_close(window):
-        glClearColor(0.2, 0.3, 0.3, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT)
-        glClear(GL_DEPTH_BUFFER_BIT)
-        width, height = glfw.get_framebuffer_size(window)
-        glViewport(0, 0, width, height)
-        glMatrixMode(GL_PROJECTION)
-        glLoadIdentity()
-        gluPerspective(45, width / height, 0.1, 100)
-        x = pan_offset[0] + cam_radius * np.sin(cam_phi) * np.cos(cam_theta)
-        y = pan_offset[1] + cam_radius * np.sin(cam_phi) * np.sin(cam_theta)
-        z = pan_offset[2] + cam_radius * np.cos(cam_phi)
+    while not (
+        glfw.window_should_close(window) or glfw.window_should_close(shelf_window)
+    ):
+        # 渲染主窗口
+        glfw.make_context_current(window)
+        render_main_window(window, root_link, shelf)
+        # 渲染货架观察窗口
+        glfw.make_context_current(shelf_window)
+        render_shelf_window(shelf_window, root_link, shelf)
 
-        # 设置模型视图矩阵
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
-        gluLookAt(
-            x,
-            y,
-            z,
-            pan_offset[0],
-            pan_offset[1],
-            pan_offset[2],  # 看向平移后的目标点
-            0,
-            0,
-            1,
-        )
-
-        root_link.draw()
-        shelf.draw()
-        glfw.swap_buffers(window)
         glfw.poll_events()
     glfw.terminate()
 

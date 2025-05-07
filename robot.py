@@ -13,19 +13,14 @@ class Robot:
         self.revolute_joints = revolute_joints
 
     def update_joint_angles(self, target_pos, target_rot):
-        # 获取当前关节角度（排除固定关节）
-        # initial_angles = [0.0] + [joint.angle for joint in self.revolute_joints]
         try:
-            # 求解逆运动学
             joint_angles = self.ik_chain.inverse_kinematics(
                 target_pos, target_rot, "all"
             )
-            # 更新关节角度（排除第一个固定关节）
             for i in range(1, 7):
-                self.revolute_joints[i - 1].angle = joint_angles[i]  # 跳过基座关节
-
+                self.revolute_joints[i - 1].angle = joint_angles[i]
         except Exception as e:
-            print(f"IK求解失败: {str(e)}")
+            print(f"IK error: {str(e)}")
 
     def update_pos(self):
         initial_angles = [0.0] + [joint.angle for joint in self.revolute_joints]
