@@ -100,7 +100,7 @@ class Shelf:
                     for x_exist, y_exist, r_exist in placed:
                         dx = x_global - x_exist
                         dy = y_global - y_exist
-                        if (dx * dx + dy * dy) < (effective_radius + r_exist) ** 2:
+                        if dy < effective_radius + r_exist:
                             collision = True
                             break
 
