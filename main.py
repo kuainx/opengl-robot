@@ -1,3 +1,4 @@
+import cv2
 import glfw
 import numpy as np
 from OpenGL.GL import (
@@ -8,22 +9,34 @@ from OpenGL.GL import (
     GL_FRONT,
     GL_LIGHT0,
     GL_LIGHTING,
+    GL_LINE_LOOP,
     GL_MODELVIEW,
     GL_POSITION,
     GL_PROJECTION,
+    GL_RGB,
     GL_SHININESS,
     GL_SPECULAR,
+    GL_UNSIGNED_BYTE,
+    glBegin,
     glClear,
     glClearColor,
+    glColor3f,
+    glDisable,
     glEnable,
+    glEnd,
     glLightfv,
+    glLineWidth,
     glLoadIdentity,
     glMaterialfv,
     glMatrixMode,
+    glOrtho,
+    glReadPixels,
+    glVertex2f,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
 from scipy.spatial.transform import Rotation as R
 
+from cv import detect_objects
 from robot import Robot
 from shelf import Shelf
 from utils import TargetVisual, parse_urdf
@@ -184,7 +197,7 @@ def gl_init_shelf(window):
 
 
 def render_main_window(window, root_link, shelf, target_visual):
-    glClearColor(102 / 255, 204 / 255, 255 / 255, 1.0)
+    glClearColor(10 / 255, 204 / 255, 255 / 255, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     glClear(GL_DEPTH_BUFFER_BIT)
     width, height = glfw.get_framebuffer_size(window)
@@ -250,6 +263,42 @@ def render_shelf_window(window, root_link, shelf):
     # 绘制场景
     root_link.draw()
     shelf.draw()
+    # 禁用深度测试和光照以绘制2D元素
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_LIGHTING)
+
+    # 新增：读取当前帧并检测物体
+    data = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
+    assert isinstance(data, bytes)
+    image = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 3)
+    image = cv2.flip(image, 0)  # 垂直翻转图像
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # 执行物体检测
+    detections = detect_objects(image)
+
+    # 设置2D正交投影
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glOrtho(0, width, 0, height, -1, 1)
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    glLineWidth(3.0)  # 将线宽从默认1.0增加到3.0
+    glColor3f(0, 1, 0)  # 设置绿色
+    # 绘制检测框（转换为OpenGL坐标系）
+    for x, y, w, h in detections:
+        y_gl = height - y - h  # 转换Y坐标
+        glBegin(GL_LINE_LOOP)
+        glVertex2f(x, y_gl)
+        glVertex2f(x + w, y_gl)
+        glVertex2f(x + w, y_gl + h)
+        glVertex2f(x, y_gl + h)
+        glEnd()
+
+    # 恢复3D渲染状态
+    glLineWidth(1.0)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
     glfw.swap_buffers(window)
 
 

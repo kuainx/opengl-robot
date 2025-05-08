@@ -1,3 +1,4 @@
+import colorsys
 import random
 
 import numpy as np
@@ -105,7 +106,16 @@ class Shelf:
 
                     if not collision:
                         # 创建物体
-                        color = (random.random(), random.random(), random.random(), 1.0)
+                        h = random.random()  # 色相范围：0.0-1.0（对应0-360°）
+                        s = random.uniform(0.3, 1)  # 饱和度范围：0.3-1.0（避免灰阶）
+                        v = random.uniform(0.3, 0.8)  # 亮度范围：0.5-1.0（避免深色）
+                        r, g, b = colorsys.hsv_to_rgb(h, s, v)
+                        color = (
+                            r,
+                            g,
+                            b,
+                            1.0,
+                        )
                         if shape_type == "cube":
                             vertices, normals = create_cuboid(
                                 -half_size,
