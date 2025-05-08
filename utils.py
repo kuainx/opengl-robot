@@ -7,15 +7,22 @@ import numpy as np
 import transforms3d
 from OpenGL.arrays import vbo
 from OpenGL.GL import (
+    GL_COLOR_ARRAY,
     GL_DIFFUSE,
     GL_FLOAT,
     GL_FRONT,
+    GL_LIGHTING,
+    GL_LINES,
     GL_NORMAL_ARRAY,
     GL_TRIANGLES,
     GL_VERTEX_ARRAY,
+    glColorPointer,
+    glDisable,
     glDisableClientState,
     glDrawArrays,
+    glEnable,
     glEnableClientState,
+    glLineWidth,
     glMaterialfv,
     glMultMatrixf,
     glNormalPointer,
@@ -292,3 +299,71 @@ def spherical_to_cartesian(theta, phi, r):
     y = r * np.sin(phi) * np.sin(theta)
     z = r * np.cos(phi)
     return (x, y, z)
+
+
+class CoordinateAxis:
+    def __init__(self, axis_length=0.15):
+        # 创建坐标系VBO
+        self.axis_length = axis_length
+        self.vertices, self.colors = self.create_axis_data()
+
+        # 创建VBO
+        self.vertex_vbo = vbo.VBO(np.array(self.vertices, dtype="f4"))
+        self.color_vbo = vbo.VBO(np.array(self.colors, dtype="f4"))
+
+    def create_axis_data(self):
+        vertices = []
+        colors = []
+        # X轴（红色）
+        vertices.extend([(0, 0, 0), (self.axis_length, 0, 0)])
+        colors.extend([(1, 0, 0, 1), (1, 0, 0, 1)])
+        # Y轴（绿色）
+        vertices.extend([(0, 0, 0), (0, self.axis_length, 0)])
+        colors.extend([(0, 1, 0, 1), (0, 1, 0, 1)])
+        # Z轴（蓝色）
+        vertices.extend([(0, 0, 0), (0, 0, self.axis_length)])
+        colors.extend([(0, 0, 1, 1), (0, 0, 1, 1)])
+        return vertices, colors
+
+    def draw(self, transform):
+        glPushMatrix()
+        glMultMatrixf(transform.T.ravel())
+
+        # 禁用光照计算
+        glDisable(GL_LIGHTING)
+
+        # 设置顶点颜色
+        self.color_vbo.bind()
+        glEnableClientState(GL_COLOR_ARRAY)
+        glColorPointer(4, GL_FLOAT, 0, None)
+
+        # 设置顶点位置
+        self.vertex_vbo.bind()
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glVertexPointer(3, GL_FLOAT, 0, None)
+
+        # 绘制线段
+        glLineWidth(3)
+        glDrawArrays(GL_LINES, 0, len(self.vertices))
+        glLineWidth(1)
+
+        # 恢复状态
+        glDisableClientState(GL_VERTEX_ARRAY)
+        glDisableClientState(GL_COLOR_ARRAY)
+        self.vertex_vbo.unbind()
+        self.color_vbo.unbind()
+        glEnable(GL_LIGHTING)
+        glPopMatrix()
+
+
+class TargetVisual:
+    def __init__(self):
+        self.axis = CoordinateAxis()
+        self.transform = np.eye(4)
+
+    def update_pose(self, position, orientation):
+        self.transform[:3, :3] = orientation
+        self.transform[:3, 3] = position
+
+    def draw(self):
+        self.axis.draw(self.transform)

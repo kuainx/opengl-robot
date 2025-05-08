@@ -20,14 +20,13 @@ from OpenGL.GL import (
     glLoadIdentity,
     glMaterialfv,
     glMatrixMode,
-    glViewport,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
 from scipy.spatial.transform import Rotation as R
 
 from robot import Robot
 from shelf import Shelf
-from utils import parse_urdf
+from utils import TargetVisual, parse_urdf
 
 mouse_left_pressed = False
 mouse_right_pressed = False
@@ -39,6 +38,7 @@ pan_offset = [0.0, 0.0, 0.0]  # 存储场景平移量
 target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
 target_orientation = np.eye(3)  # 初始目标旋转
 robot = None
+target_visual = None
 
 
 def mouse_button_callback(window, button, action, mods):
@@ -92,7 +92,9 @@ def scroll_callback(window, xoffset, yoffset):
 
 
 def key_callback(window, key, scancode, action, mods):
-    global revolute_joints, target_orientation, target_position, robot
+    global revolute_joints, target_orientation, target_position, robot, target_visual
+    assert target_visual is not None
+    assert robot is not None
     if action != glfw.PRESS and action != glfw.REPEAT:
         return
 
@@ -112,8 +114,8 @@ def key_callback(window, key, scancode, action, mods):
         # 根据Ctrl状态决定方向
         direction = -1 if ctrl_pressed else 1
         revolute_joints[index].angle += delta_angle * direction
-        if robot is not None:
-            target_position, target_orientation = robot.update_pos()
+        target_position, target_orientation = robot.update_pos()
+        target_visual.update_pose(target_position, target_orientation)
 
     # 处理位置控制 QWE (XYZ轴移动)
     pos_axes = {glfw.KEY_Q: 0, glfw.KEY_W: 1, glfw.KEY_E: 2}
@@ -149,8 +151,8 @@ def key_callback(window, key, scancode, action, mods):
         glfw.KEY_S,
         glfw.KEY_D,
     ]:
-        if robot is not None:
-            robot.update_joint_angles(target_position, target_orientation)
+        robot.update_joint_angles(target_position, target_orientation)
+        target_visual.update_pose(target_position, target_orientation)
 
 
 def gl_init(window):
@@ -181,7 +183,7 @@ def gl_init_shelf(window):
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
 
-def render_main_window(window, root_link, shelf):
+def render_main_window(window, root_link, shelf, target_visual):
     glClearColor(102 / 255, 204 / 255, 255 / 255, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     glClear(GL_DEPTH_BUFFER_BIT)
@@ -205,6 +207,7 @@ def render_main_window(window, root_link, shelf):
     # 绘制场景
     root_link.draw()
     shelf.draw()
+    target_visual.draw()
     glfw.swap_buffers(window)
 
 
@@ -264,18 +267,19 @@ def main():
         glfw.terminate()
         return
     gl_init_shelf(shelf_window)
-    global revolute_joints, robot
+    global revolute_joints, robot, target_visual
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
     robot = Robot("robot/rm_65.urdf", revolute_joints)
     # 创建货架
     shelf = Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3])
+    target_visual = TargetVisual()
 
     while not (
         glfw.window_should_close(window) or glfw.window_should_close(shelf_window)
     ):
         # 渲染主窗口
         glfw.make_context_current(window)
-        render_main_window(window, root_link, shelf)
+        render_main_window(window, root_link, shelf, target_visual)
         # 渲染货架观察窗口
         glfw.make_context_current(shelf_window)
         render_shelf_window(shelf_window, root_link, shelf)
