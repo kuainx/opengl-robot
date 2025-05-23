@@ -39,7 +39,7 @@ from scipy.spatial.transform import Rotation as R
 from cv import detect_objects
 from robot import Robot
 from shelf import Shelf
-from utils import TargetVisual, parse_urdf
+from utils import Floor, Target, parse_urdf
 
 mouse_left_pressed = False
 mouse_right_pressed = False
@@ -50,8 +50,8 @@ cam_phi = np.arccos(3 / 5.196)  # 初始俯仰角
 pan_offset = [0.0, 0.0, 0.0]  # 存储场景平移量
 target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
 target_orientation = np.eye(3)  # 初始目标旋转
-robot = None
-target_visual = None
+# robot = None
+target_axis = None
 
 
 def mouse_button_callback(window, button, action, mods):
@@ -105,9 +105,9 @@ def scroll_callback(window, xoffset, yoffset):
 
 
 def key_callback(window, key, scancode, action, mods):
-    global revolute_joints, target_orientation, target_position, robot, target_visual
-    assert target_visual is not None
-    assert robot is not None
+    global revolute_joints, target_orientation, target_position, target_axis, objs
+    assert target_axis is not None
+    robot = objs["robot"]
     if action != glfw.PRESS and action != glfw.REPEAT:
         return
 
@@ -128,7 +128,7 @@ def key_callback(window, key, scancode, action, mods):
         direction = -1 if ctrl_pressed else 1
         revolute_joints[index].angle += delta_angle * direction
         target_position, target_orientation = robot.update_pos()
-        target_visual.update_pose(target_position, target_orientation)
+        target_axis.update_pose(target_position, target_orientation)
 
     # 处理位置控制 QWE (XYZ轴移动)
     pos_axes = {glfw.KEY_Q: 0, glfw.KEY_W: 1, glfw.KEY_E: 2}
@@ -165,7 +165,7 @@ def key_callback(window, key, scancode, action, mods):
         glfw.KEY_D,
     ]:
         robot.update_joint_angles(target_position, target_orientation)
-        target_visual.update_pose(target_position, target_orientation)
+        target_axis.update_pose(target_position, target_orientation)
 
 
 def gl_init(window):
@@ -196,7 +196,7 @@ def gl_init_shelf(window):
     glMaterialfv(GL_FRONT, GL_SHININESS, 50)
 
 
-def render_main_window(window, root_link, shelf, target_visual):
+def render_main_window(window, objs):
     glClearColor(10 / 255, 204 / 255, 255 / 255, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     glClear(GL_DEPTH_BUFFER_BIT)
@@ -218,13 +218,15 @@ def render_main_window(window, root_link, shelf, target_visual):
     gluLookAt(x, y, z, pan_offset[0], pan_offset[1], pan_offset[2], 0, 0, 1)
 
     # 绘制场景
-    root_link.draw()
-    shelf.draw()
-    target_visual.draw()
+    objs["root_link"].draw()
+    objs["shelf"].draw()
+    objs["target_axis"].draw()
+    objs["floor"].draw()
     glfw.swap_buffers(window)
 
 
-def render_shelf_window(window, root_link, shelf):
+def render_shelf_window(window, objs):
+    shelf = objs["shelf"]
     glClearColor(102 / 255, 204 / 255, 255 / 255, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     glClear(GL_DEPTH_BUFFER_BIT)
@@ -261,8 +263,9 @@ def render_shelf_window(window, root_link, shelf):
     )  # 上方向
 
     # 绘制场景
-    root_link.draw()
+    objs["root_link"].draw()
     shelf.draw()
+    objs["floor"].draw()
     # 禁用深度测试和光照以绘制2D元素
     glDisable(GL_DEPTH_TEST)
     glDisable(GL_LIGHTING)
@@ -316,22 +319,25 @@ def main():
         glfw.terminate()
         return
     gl_init_shelf(shelf_window)
-    global revolute_joints, robot, target_visual
+    global revolute_joints, objs
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
-    robot = Robot("robot/rm_65.urdf", revolute_joints)
-    # 创建货架
-    shelf = Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3])
-    target_visual = TargetVisual()
+    objs = {
+        "root_link": root_link,
+        "robot": Robot("robot/rm_65.urdf", revolute_joints),
+        "shelf": Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3]),
+        "target_axis": Target(),
+        "floor": Floor(size=2, step=0.5),
+    }
 
     while not (
         glfw.window_should_close(window) or glfw.window_should_close(shelf_window)
     ):
         # 渲染主窗口
         glfw.make_context_current(window)
-        render_main_window(window, root_link, shelf, target_visual)
+        render_main_window(window, objs)
         # 渲染货架观察窗口
         glfw.make_context_current(shelf_window)
-        render_shelf_window(shelf_window, root_link, shelf)
+        render_shelf_window(shelf_window, objs)
 
         glfw.poll_events()
     glfw.terminate()

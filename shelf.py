@@ -35,7 +35,9 @@ class Shelf:
         for x, y, z in corners:
             x1, y1 = x - pillar_size / 2, y - pillar_size / 2
             x2, y2 = x + pillar_size / 2, y + pillar_size / 2
-            pillar_verts, pillar_norms = create_cuboid(x1, y1, z, x2, y2, z + height)
+            pillar_verts, pillar_norms = create_cuboid(
+                x1, y1, z - self.position[2], x2, y2, z + height
+            )
             vertices.extend(pillar_verts)
             normals.extend(pillar_norms)
 

@@ -356,7 +356,7 @@ class CoordinateAxis:
         glPopMatrix()
 
 
-class TargetVisual:
+class Target:
     def __init__(self):
         self.axis = CoordinateAxis()
         self.transform = np.eye(4)
@@ -367,3 +367,85 @@ class TargetVisual:
 
     def draw(self):
         self.axis.draw(self.transform)
+
+
+class Floor:
+    def __init__(
+        self,
+        size=5.0,
+        step=1.0,
+        fill_color=(0.9, 0.9, 0.9, 1.0),
+        line_color=(0.7, 0.7, 0.7, 1.0),
+    ):
+        # 生成填充面和网格线数据
+        self.fill_vertices, self.fill_colors = self.create_fill_data(size, fill_color)
+        self.line_vertices, self.line_colors = self.create_grid_data(
+            size, step, line_color
+        )
+
+        # 创建VBO
+        self.fill_vertex_vbo = vbo.VBO(np.array(self.fill_vertices, dtype="f4"))
+        self.fill_color_vbo = vbo.VBO(np.array(self.fill_colors, dtype="f4"))
+        self.line_vertex_vbo = vbo.VBO(np.array(self.line_vertices, dtype="f4"))
+        self.line_color_vbo = vbo.VBO(np.array(self.line_colors, dtype="f4"))
+
+    def create_fill_data(self, size, color):
+        """创建地板填充面数据（两个三角形组成矩形）"""
+        vertices = [
+            (-size, -size, 0),
+            (size, -size, 0),
+            (size, size, 0),
+            (-size, -size, 0),
+            (size, size, 0),
+            (-size, size, 0),
+        ]
+        colors = [color] * 6  # 每个顶点使用相同颜色
+        return vertices, colors
+
+    def create_grid_data(self, size, step, color):
+        """创建网格线数据"""
+        vertices = []
+        colors = []
+        # 横向线条（沿X轴方向）
+        for y in np.arange(-size, size + step, step):
+            vertices.extend([(-size, y, 0.001), (size, y, 0.001)])
+            colors.extend([color, color])
+        # 纵向线条（沿Y轴方向）
+        for x in np.arange(-size, size + step, step):
+            vertices.extend([(x, -size, 0.001), (x, size, 0.001)])
+            colors.extend([color, color])
+        return vertices, colors
+
+    def draw(self):
+        glDisable(GL_LIGHTING)  # 禁用光照
+        glPushMatrix()
+
+        # 先绘制填充面
+        self.fill_color_vbo.bind()
+        glEnableClientState(GL_COLOR_ARRAY)
+        glColorPointer(4, GL_FLOAT, 0, None)
+
+        self.fill_vertex_vbo.bind()
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glVertexPointer(3, GL_FLOAT, 0, None)
+        glDrawArrays(GL_TRIANGLES, 0, len(self.fill_vertices))
+
+        # 再绘制网格线
+        self.line_color_vbo.bind()
+        glColorPointer(4, GL_FLOAT, 0, None)
+
+        self.line_vertex_vbo.bind()
+        glVertexPointer(3, GL_FLOAT, 0, None)
+        glLineWidth(1)
+        glDrawArrays(GL_LINES, 0, len(self.line_vertices))
+
+        # 清理状态
+        glDisableClientState(GL_VERTEX_ARRAY)
+        glDisableClientState(GL_COLOR_ARRAY)
+        self.fill_vertex_vbo.unbind()
+        self.fill_color_vbo.unbind()
+        self.line_vertex_vbo.unbind()
+        self.line_color_vbo.unbind()
+
+        glEnable(GL_LIGHTING)
+        glPopMatrix()
