@@ -51,7 +51,7 @@ pan_offset = [0.0, 0.0, 0.0]  # 存储场景平移量
 target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
 target_orientation = np.eye(3)  # 初始目标旋转
 # robot = None
-target_axis = None
+# target_axis = None
 
 
 def mouse_button_callback(window, button, action, mods):
@@ -105,8 +105,8 @@ def scroll_callback(window, xoffset, yoffset):
 
 
 def key_callback(window, key, scancode, action, mods):
-    global revolute_joints, target_orientation, target_position, target_axis, objs
-    assert target_axis is not None
+    global revolute_joints, target_orientation, target_position, objs
+    target_axis = objs["target_axis"]
     robot = objs["robot"]
     if action != glfw.PRESS and action != glfw.REPEAT:
         return
