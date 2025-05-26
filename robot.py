@@ -11,6 +11,8 @@ class Robot:
             active_links_mask=[False] + [True] * 6 + [False] * 3,
         )
         self.revolute_joints = revolute_joints
+        self.current_position = np.zeros(3)
+        self.current_orientation = np.eye(3)
 
     def update_joint_angles(self, target_pos, target_rot):
         try:
@@ -19,6 +21,7 @@ class Robot:
             )
             for i in range(1, 7):
                 self.revolute_joints[i - 1].angle = joint_angles[i]
+            self.current_position, self.current_orientation = self.update_pos()
         except Exception as e:
             print(f"IK error: {str(e)}")
 

@@ -36,6 +36,7 @@ from OpenGL.GL import (
 from OpenGL.GLU import gluLookAt, gluPerspective
 from scipy.spatial.transform import Rotation as R
 
+from animate import AnimationController
 from cv import detect_objects
 from robot import Robot
 from shelf import Shelf
@@ -166,6 +167,14 @@ def key_callback(window, key, scancode, action, mods):
     ]:
         robot.update_joint_angles(target_position, target_orientation)
         target_axis.update_pose(target_position, target_orientation)
+
+    if key == glfw.KEY_G and action == glfw.PRESS:
+        anim_controller = objs["anim_controller"]
+        try:
+            anim_controller.start_pick_and_place()
+        except Exception as e:
+            print(f"抓取失败: {str(e)}")
+            anim_controller._reset_state()
 
 
 def gl_init(window):
@@ -328,10 +337,18 @@ def main():
         "target_axis": Target(),
         "floor": Floor(size=2, step=0.5),
     }
+    anim_controller = AnimationController(
+        robot=objs["robot"],
+        shelf=objs["shelf"],
+        receive_position=np.array([-0.5, 0, 0.5]),
+    )
+    objs["anim_controller"] = anim_controller
 
     while not (
         glfw.window_should_close(window) or glfw.window_should_close(shelf_window)
     ):
+        if anim_controller.is_animating:
+            anim_controller.update()
         # 渲染主窗口
         glfw.make_context_current(window)
         render_main_window(window, objs)
