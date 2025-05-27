@@ -8,6 +8,7 @@ class AnimationController:
         Idle = "idle"
         MovingToPick = "moving_to_pick"
         Grabbing = "grabbing"
+        MoveJ = "movej"
         MovingToPlace = "moving_to_place"
         Releasing = "releasing"
 
@@ -21,11 +22,16 @@ class AnimationController:
         self.path = []
         self.current_step = 0
         self.start_time = 0.0
-        self.duration = 1.0  # 默认阶段持续时间
+        self.duration = 10.0  # 默认阶段持续时间
+        self.last_frame_time = 0
+        self.start_joint = None
+        self.end_joint = None
 
     def draw_obj(self):
         if self.grabbed_object:
-            self.grabbed_object.draw()
+            if self.current_step > 0:
+                self._update_grabbed_position()
+            # self.grabbed_object.draw()
 
     def start_pick_and_place(self):
         if self.state != self.State.Idle or not self.shelf.objects:
@@ -44,6 +50,7 @@ class AnimationController:
             (grab_pos, grab_rot),
             (grab_pre, grab_rot),
             (receive_pre, release_rot),
+            (receive_pre, release_rot),
             (self.receive_position, release_rot),
             (receive_pre, release_rot),
         ]
@@ -51,43 +58,47 @@ class AnimationController:
         self.state = self.State.MovingToPick
         self.current_step = 0
         self.start_time = glfw.get_time()
-        self.duration = 2.0
         return True
 
     def update(self):
         if self.state == self.State.Idle:
             return
-
         current_time = glfw.get_time()
+        # if current_time - self.last_frame_time < 0.016:  # 约60FPS
+        #     return
+        # self.last_frame_time = current_time
         elapsed = current_time - self.start_time
         t = min(elapsed / self.duration, 1.0)
 
         # 更新被抓物体位置（仅在实际抓取阶段）
-        if self.current_step > 1:
-            self._update_grabbed_position()
+        # if self.current_step > 0:
+        #     self._update_grabbed_position()
         if self.state == self.State.MovingToPick:
             self.robot.move_joint(6, np.radians(50))
             self._handle_movement(
                 start_step=0,
-                end_step=2,  # 移动到抓取点并返回预放置
+                end_step=2,
                 next_state=self.State.Grabbing,
             )
         elif self.state == self.State.Grabbing:
-            # 设置第七关节为闭合角度
             self.robot.move_joint(6, np.radians(30))
-            if t >= 1.0:
-                self.state = self.State.MovingToPlace
-                self.current_step = 1  # 从预放置开始
-                self.start_time = current_time
-                self.duration = 2.0
-
+            self._handle_movement(
+                start_step=3,
+                end_step=3,
+                next_state=self.State.MoveJ,
+            )
+        elif self.state == self.State.MoveJ:
+            self._handle_movej(
+                start_step=4,
+                end_step=4,
+                next_state=self.State.MovingToPlace,
+            )
         elif self.state == self.State.MovingToPlace:
             self._handle_movement(
-                start_step=1,
-                end_step=5,  # 移动到放置位置
+                start_step=4,
+                end_step=6,
                 next_state=self.State.Releasing,
             )
-
         elif self.state == self.State.Releasing:
             self.robot.move_joint(6, np.radians(50))
             if t >= 1.0:
@@ -122,7 +133,8 @@ class AnimationController:
             end_pos, end_rot = self.path[idx]
 
             t = min((glfw.get_time() - self.start_time) / self.duration, 1.0)
-            new_pos = start_pos + (end_pos - start_pos) * t
+            print(t)
+            new_pos = start_pos * (1 - t) + end_pos * t  # 线性插值
             new_rot = self._interpolate_rotation(start_rot, end_rot, t)
 
             self.robot.update_joint_angles(new_pos, new_rot)
@@ -134,19 +146,37 @@ class AnimationController:
             self.state = next_state
             self.start_time = glfw.get_time()
 
-    def _cubic_bezier(self, p0, p1, p2, p3, t):
-        """三次贝塞尔曲线插值"""
-        return (
-            (1 - t) ** 3 * p0
-            + 3 * (1 - t) ** 2 * t * p1
-            + 3 * (1 - t) * t**2 * p2
-            + t**3 * p3
-        )
+    def _handle_movej(self, start_step, end_step, next_state):
+        if self.current_step < end_step:
+            idx = self.current_step
+            start_pos, start_rot = (
+                self.path[idx] if idx == start_step else self.path[idx - 1]
+            )
+            end_pos, end_rot = self.path[idx]
+            self._movej(start_pos, start_rot, end_pos, end_rot)
+        else:
+            self.state = next_state
+            self.start_time = glfw.get_time()
+
+    def _movej(self, start_pos, start_rot, end_pos, end_rot):
+        if self.start_joint is None or self.end_joint is None:
+            self.start_joint = self.robot._get_ik(start_pos, start_rot)
+            self.end_joint = self.robot._get_ik(end_pos, end_rot, False)
+        t = min((glfw.get_time() - self.start_time) / self.duration, 1.0)
+        print("movej", t)
+        current_joint = self.start_joint * (1 - t) + self.end_joint * t
+        for i in range(1, 7):
+            self.robot.revolute_joints[i - 1].angle = current_joint[i]
+        self.robot.update_pos()
+        if t >= 1.0:
+            self.current_step += 1
+            self.start_time = glfw.get_time()
 
     def _update_grabbed_position(self):
         """同步被抓物体到机械臂末端"""
         if self.grabbed_object:
             self.grabbed_object.origin[:3, 3] = self.robot.current_position
+            self.grabbed_object.origin[:3, :3] = self.robot.current_orientation
 
     def _reset_state(self):
         """重置动画控制器状态"""
@@ -154,6 +184,11 @@ class AnimationController:
         self.grabbed_object = None
         self.path = []
         self.current_step = 0
+        self.start_time = 0.0
+        self.duration = 10.0  # 默认阶段持续时间
+        self.last_frame_time = 0
+        self.start_joint = None
+        self.end_joint = None
 
     @property
     def is_animating(self):

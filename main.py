@@ -307,6 +307,8 @@ def render_shelf_window(window, objs):
 def main():
     assert glfw.init() == True
     # 创建主窗口
+    glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)  # 确保启用双缓冲
+    glfw.window_hint(glfw.SAMPLES, 4)  # 开启4x多重采样抗锯齿
     window = glfw.create_window(800, 600, "Robot Viewer", None, None)
     if not window:
         glfw.terminate()
