@@ -51,8 +51,6 @@ cam_phi = np.arccos(3 / 5.196)  # 初始俯仰角
 pan_offset = [0.0, 0.0, 0.0]  # 存储场景平移量
 target_position = np.array([0.5, 0, 0.5])  # 初始目标位置
 target_orientation = np.eye(3)  # 初始目标旋转
-# robot = None
-# target_axis = None
 
 
 def mouse_button_callback(window, button, action, mods):
@@ -127,7 +125,7 @@ def key_callback(window, key, scancode, action, mods):
         index = key - glfw.KEY_1
         # 根据Ctrl状态决定方向
         direction = -1 if ctrl_pressed else 1
-        revolute_joints[index].angle += delta_angle * direction
+        robot.move_joint(index, delta_angle * direction, True)
         target_position, target_orientation = robot.update_pos()
         target_axis.update_pose(target_position, target_orientation)
 
@@ -146,15 +144,6 @@ def key_callback(window, key, scancode, action, mods):
         angle = delta_rot * (-1 if ctrl_pressed else 1)
         rot = R.from_euler(axis, angle, degrees=True)
         target_orientation = rot.apply(target_orientation)
-
-    # 更新mimic关节
-    for joint in revolute_joints:
-        if joint.mimic_joint is not None:
-            master_joint = next(
-                (j for j in revolute_joints if j.name == joint.mimic_joint), None
-            )
-            if master_joint:
-                joint.angle = master_joint.angle * joint.multiplier + joint.offset
 
     # 触发逆解计算
     if key in [
@@ -231,6 +220,7 @@ def render_main_window(window, objs):
     objs["shelf"].draw()
     objs["target_axis"].draw()
     objs["floor"].draw()
+    objs["anim_controller"].draw_obj()
     glfw.swap_buffers(window)
 
 
@@ -332,7 +322,7 @@ def main():
     root_link, revolute_joints = parse_urdf("robot/rm_65.urdf")
     objs = {
         "root_link": root_link,
-        "robot": Robot("robot/rm_65.urdf", revolute_joints),
+        "robot": Robot("robot/rm_65.urdf", "robot/arm.urdf", revolute_joints),
         "shelf": Shelf([0.15, 0.5, 0.5, 3], [0.3, 0.0, 0.3]),
         "target_axis": Target(),
         "floor": Floor(size=2, step=0.5),

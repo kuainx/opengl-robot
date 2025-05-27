@@ -23,21 +23,29 @@ class AnimationController:
         self.start_time = 0.0
         self.duration = 1.0  # 默认阶段持续时间
 
+    def draw_obj(self):
+        if self.grabbed_object:
+            self.grabbed_object.draw()
+
     def start_pick_and_place(self):
         if self.state != self.State.Idle or not self.shelf.objects:
             return False
 
         self.grabbed_object = self.shelf.objects.pop(0)
         grab_pos = self.grabbed_object.origin[:3, 3].copy()
-        self.grab_rot = R.from_euler("yx", [np.pi / 2, np.pi / 2]).as_matrix()
-        self.release_rot = R.from_euler("yx", [-np.pi / 2, np.pi / 2]).as_matrix()
+        grab_pre = grab_pos + np.array([-0.1, 0, 0])
+        receive_pre = self.receive_position + np.array([0, 0, 0.1])
+        grab_rot = R.from_euler("yx", [np.pi / 2, np.pi / 2]).as_matrix()
+        release_rot = R.from_euler("yx", [-np.pi / 2, np.pi / 2]).as_matrix()
 
         # 路径点包含位置和旋转
         self.path = [
-            (grab_pos + np.array([-0.1, 0, 0]), self.grab_rot),  # 预抓取点
-            (grab_pos, self.grab_rot),  # 抓取点（平放）
-            (self.receive_position + np.array([0, 0, 0.1]), self.release_rot),
-            (self.receive_position, self.release_rot),
+            (grab_pre, grab_rot),
+            (grab_pos, grab_rot),
+            (grab_pre, grab_rot),
+            (receive_pre, release_rot),
+            (self.receive_position, release_rot),
+            (receive_pre, release_rot),
         ]
 
         self.state = self.State.MovingToPick
@@ -54,34 +62,34 @@ class AnimationController:
         elapsed = current_time - self.start_time
         t = min(elapsed / self.duration, 1.0)
 
+        # 更新被抓物体位置（仅在实际抓取阶段）
+        if self.current_step > 1:
+            self._update_grabbed_position()
         if self.state == self.State.MovingToPick:
+            self.robot.move_joint(6, np.radians(50))
             self._handle_movement(
                 start_step=0,
                 end_step=2,  # 移动到抓取点并返回预放置
                 next_state=self.State.Grabbing,
             )
-
-            # 更新被抓物体位置（仅在实际抓取阶段）
-            if self.current_step == 1:
-                self._update_grabbed_position()
-
         elif self.state == self.State.Grabbing:
             # 设置第七关节为闭合角度
-            self.robot.revolute_joints[6].angle = np.radians(30)
+            self.robot.move_joint(6, np.radians(30))
             if t >= 1.0:
                 self.state = self.State.MovingToPlace
-                self.current_step = 2  # 从预放置开始
+                self.current_step = 1  # 从预放置开始
                 self.start_time = current_time
                 self.duration = 2.0
 
         elif self.state == self.State.MovingToPlace:
             self._handle_movement(
-                start_step=2,
-                end_step=4,  # 移动到放置位置
+                start_step=1,
+                end_step=5,  # 移动到放置位置
                 next_state=self.State.Releasing,
             )
 
         elif self.state == self.State.Releasing:
+            self.robot.move_joint(6, np.radians(50))
             if t >= 1.0:
                 # 完成放置后重置状态
                 self.grabbed_object.origin[:3, 3] = self.receive_position
