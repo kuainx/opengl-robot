@@ -332,7 +332,7 @@ def main():
     anim_controller = AnimationController(
         robot=objs["robot"],
         shelf=objs["shelf"],
-        receive_position=np.array([-0.5, 0, 0.5]),
+        receive_position=np.array([-0.6, 0, 0.5]),
     )
     objs["anim_controller"] = anim_controller
 

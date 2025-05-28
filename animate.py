@@ -22,16 +22,16 @@ class AnimationController:
         self.path = []
         self.current_step = 0
         self.start_time = 0.0
-        self.duration = 10.0  # 默认阶段持续时间
+        self.duration = 5.0  # 默认阶段持续时间
         self.last_frame_time = 0
         self.start_joint = None
         self.end_joint = None
 
     def draw_obj(self):
         if self.grabbed_object:
-            if self.current_step > 0:
+            if self.current_step > 2:
                 self._update_grabbed_position()
-            # self.grabbed_object.draw()
+            self.grabbed_object.draw()
 
     def start_pick_and_place(self):
         if self.state != self.State.Idle or not self.shelf.objects:
@@ -43,13 +43,13 @@ class AnimationController:
         receive_pre = self.receive_position + np.array([0, 0, 0.1])
         grab_rot = R.from_euler("yx", [np.pi / 2, np.pi / 2]).as_matrix()
         release_rot = R.from_euler("yx", [-np.pi / 2, np.pi / 2]).as_matrix()
-
+        self.robot.move_joint(6, np.radians(50))
         # 路径点包含位置和旋转
         self.path = [
+            (self.robot.current_position, self.robot.current_orientation),
             (grab_pre, grab_rot),
             (grab_pos, grab_rot),
             (grab_pre, grab_rot),
-            (receive_pre, release_rot),
             (receive_pre, release_rot),
             (self.receive_position, release_rot),
             (receive_pre, release_rot),
@@ -64,38 +64,32 @@ class AnimationController:
         if self.state == self.State.Idle:
             return
         current_time = glfw.get_time()
-        # if current_time - self.last_frame_time < 0.016:  # 约60FPS
-        #     return
-        # self.last_frame_time = current_time
         elapsed = current_time - self.start_time
         t = min(elapsed / self.duration, 1.0)
 
-        # 更新被抓物体位置（仅在实际抓取阶段）
-        # if self.current_step > 0:
-        #     self._update_grabbed_position()
         if self.state == self.State.MovingToPick:
             self.robot.move_joint(6, np.radians(50))
             self._handle_movement(
                 start_step=0,
-                end_step=2,
+                end_step=3,
                 next_state=self.State.Grabbing,
             )
         elif self.state == self.State.Grabbing:
             self.robot.move_joint(6, np.radians(30))
             self._handle_movement(
-                start_step=3,
-                end_step=3,
+                start_step=4,
+                end_step=4,
                 next_state=self.State.MoveJ,
             )
         elif self.state == self.State.MoveJ:
-            self._handle_movej(
-                start_step=4,
-                end_step=4,
+            self._handle_movement(
+                start_step=5,
+                end_step=5,
                 next_state=self.State.MovingToPlace,
             )
         elif self.state == self.State.MovingToPlace:
             self._handle_movement(
-                start_step=4,
+                start_step=6,
                 end_step=6,
                 next_state=self.State.Releasing,
             )
@@ -185,7 +179,6 @@ class AnimationController:
         self.path = []
         self.current_step = 0
         self.start_time = 0.0
-        self.duration = 10.0  # 默认阶段持续时间
         self.last_frame_time = 0
         self.start_joint = None
         self.end_joint = None
