@@ -140,32 +140,6 @@ class AnimationController:
             self.state = next_state
             self.start_time = glfw.get_time()
 
-    def _handle_movej(self, start_step, end_step, next_state):
-        if self.current_step < end_step:
-            idx = self.current_step
-            start_pos, start_rot = (
-                self.path[idx] if idx == start_step else self.path[idx - 1]
-            )
-            end_pos, end_rot = self.path[idx]
-            self._movej(start_pos, start_rot, end_pos, end_rot)
-        else:
-            self.state = next_state
-            self.start_time = glfw.get_time()
-
-    def _movej(self, start_pos, start_rot, end_pos, end_rot):
-        if self.start_joint is None or self.end_joint is None:
-            self.start_joint = self.robot._get_ik(start_pos, start_rot)
-            self.end_joint = self.robot._get_ik(end_pos, end_rot, False)
-        t = min((glfw.get_time() - self.start_time) / self.duration, 1.0)
-        print("movej", t)
-        current_joint = self.start_joint * (1 - t) + self.end_joint * t
-        for i in range(1, 7):
-            self.robot.revolute_joints[i - 1].angle = current_joint[i]
-        self.robot.update_pos()
-        if t >= 1.0:
-            self.current_step += 1
-            self.start_time = glfw.get_time()
-
     def _update_grabbed_position(self):
         """同步被抓物体到机械臂末端"""
         if self.grabbed_object:
