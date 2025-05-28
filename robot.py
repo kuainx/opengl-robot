@@ -16,16 +16,21 @@ class Robot:
         else:
             self.revolute_joints[i].angle = angle
         self.current_position, self.current_orientation = self.update_pos()
-        if i < 6:
-            return
+        self.process_mimic()
+
+    def move_joints(self, angles):
+        for i, joint in enumerate(self.revolute_joints):
+            joint.angle = angles[i]
+        self.current_position, self.current_orientation = self.update_pos()
+        self.process_mimic()
+
+    def process_mimic(self):
         for joint in self.revolute_joints:
-            if joint.mimic_joint is not None:
-                master_joint = next(
-                    (j for j in self.revolute_joints if j.name == joint.mimic_joint),
-                    None,
+            if joint.mimic_joint:
+                master = next(
+                    j for j in self.revolute_joints if j.name == joint.mimic_joint
                 )
-                if master_joint:
-                    joint.angle = master_joint.angle * joint.multiplier + joint.offset
+                joint.angle = master.angle * joint.multiplier + joint.offset
 
     def update_joint_angles(self, target_pos, target_rot):
         initial_angles = [0.0] + [joint.angle for joint in self.revolute_joints]

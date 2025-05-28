@@ -22,7 +22,6 @@ class AnimationController:
         self.path = []
         self.current_step = 0
         self.start_time = 0.0
-        self.duration = 5.0  # 默认阶段持续时间
         self.last_frame_time = 0
         self.start_joint = None
         self.end_joint = None
@@ -46,13 +45,13 @@ class AnimationController:
         self.robot.move_joint(6, np.radians(50))
         # 路径点包含位置和旋转
         self.path = [
-            (self.robot.current_position, self.robot.current_orientation),
-            (grab_pre, grab_rot),
-            (grab_pos, grab_rot),
-            (grab_pre, grab_rot),
-            (receive_pre, release_rot),
-            (self.receive_position, release_rot),
-            (receive_pre, release_rot),
+            (self.robot.current_position, self.robot.current_orientation, 1),
+            (grab_pre, grab_rot, 10),
+            (grab_pos, grab_rot, 2),
+            (grab_pre, grab_rot, 2),
+            (receive_pre, release_rot, 10),
+            (self.receive_position, release_rot, 2),
+            (receive_pre, release_rot, 2),
         ]
 
         self.state = self.State.MovingToPick
@@ -63,10 +62,6 @@ class AnimationController:
     def update(self):
         if self.state == self.State.Idle:
             return
-        current_time = glfw.get_time()
-        elapsed = current_time - self.start_time
-        t = min(elapsed / self.duration, 1.0)
-
         if self.state == self.State.MovingToPick:
             self.robot.move_joint(6, np.radians(50))
             self._handle_movement(
@@ -95,10 +90,8 @@ class AnimationController:
             )
         elif self.state == self.State.Releasing:
             self.robot.move_joint(6, np.radians(50))
-            if t >= 1.0:
-                # 完成放置后重置状态
-                self.grabbed_object.origin[:3, 3] = self.receive_position
-                self._reset_state()
+            self.grabbed_object.origin[:3, 3] = self.receive_position
+            self._reset_state()
 
     # 修改动画控制器中的旋转插值方法
     def _interpolate_rotation(self, start_rot, end_rot, t):
@@ -121,12 +114,12 @@ class AnimationController:
     def _handle_movement(self, start_step, end_step, next_state):
         if self.current_step < end_step:
             idx = self.current_step
-            start_pos, start_rot = (
+            start_pos, start_rot, _ = (
                 self.path[idx] if idx == start_step else self.path[idx - 1]
             )
-            end_pos, end_rot = self.path[idx]
+            end_pos, end_rot, duration = self.path[idx]
 
-            t = min((glfw.get_time() - self.start_time) / self.duration, 1.0)
+            t = min((glfw.get_time() - self.start_time) / duration, 1.0)
             print(t)
             new_pos = start_pos * (1 - t) + end_pos * t  # 线性插值
             new_rot = self._interpolate_rotation(start_rot, end_rot, t)
