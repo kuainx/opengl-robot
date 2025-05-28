@@ -42,7 +42,11 @@ class Robot:
     def _get_ik(self, target_pos, target_rot, init_joint=[0] * 7) -> list[float]:
         try:
             joint_angles = self.ik_chain.inverse_kinematics(
-                target_pos, target_rot, "all", initial_position=init_joint[:7]
+                target_pos,
+                target_rot,
+                "all",
+                initial_position=init_joint[:7],
+                optimizer="scalar",
             )
             return joint_angles.copy()
         except Exception as e:
